@@ -107,6 +107,7 @@ class OpenLibraryApi:
         :param book_data: Данные о книге из Open Library
         :return: Описание книги или None, если описание не найдено
         """
+        description = None
         try:
             response = self.session.get(f"{self.BASE_URL}/{book_data['key']}/editions.json")
             response.raise_for_status()

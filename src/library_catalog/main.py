@@ -5,9 +5,8 @@ from typing import List, Optional
 from pathlib import Path as FilePath
 
 from .models import Book, BookCreate, BookUpdate, AvailabilityStatus
-from .repositories import BookRepository
-from .storage import Storage, FileStorage, JsonBinStorage
-from .openlibrary_api import OpenLibraryApi
+from .service import BookCrudService, CRUDServiceInterface
+from .storage import RepositoryInterface, FileRepository, JsonBinRepository, DbPostgresRepository
 
 
 BOOKS_FILE_PATH = FilePath(__file__).parent.parent.parent / "data" / "books.json"
@@ -19,20 +18,22 @@ app = FastAPI(
     version="0.1.0"
 )
 
-def get_storage() -> Storage:
+def get_storage() -> RepositoryInterface:
     """Функция-зависимость для получения хранилища данных."""
     storage_type = os.getenv("STORAGE_TYPE", "file")
     
     if storage_type == "file":
-        return FileStorage(file_path=str(BOOKS_FILE_PATH))
+        return FileRepository(file_path=str(BOOKS_FILE_PATH))
     elif storage_type == "jsonbin":
-        return JsonBinStorage()
+        return JsonBinRepository()
+    elif storage_type == "db":
+        return DbPostgresRepository()
     else:
         raise ValueError(f"Неизвестный тип хранилища: {storage_type}")
 
-def get_book_repository(storage: Storage = Depends(get_storage)):
+def get_book_repository(storage: RepositoryInterface = Depends(get_storage)):
     """Функция-зависимость для получения репозитория книг."""
-    return BookRepository(storage=storage)
+    return BookCrudService(storage=storage)
 
 @app.get("/")
 async def root():
@@ -46,7 +47,7 @@ async def get_books(
     author: Optional[str] = Query(None, description="Фильтр по автору"),
     genre: Optional[str] = Query(None, description="Фильтр по жанру"),
     availability: Optional[AvailabilityStatus] = Query(None, description="Фильтр по доступности"),
-    repo: BookRepository = Depends(get_book_repository)
+    repo: CRUDServiceInterface[Book, BookCreate, BookUpdate] = Depends(get_book_repository)
 ):
     """
     Получение списка всех книг с возможностью фильтрации.
@@ -56,7 +57,7 @@ async def get_books(
 @app.get("/books/{book_id}", response_model=Book, tags=["books"])
 async def get_book(
     book_id: int = Path(..., description="ID книги"),
-    repo: BookRepository = Depends(get_book_repository)
+    repo: BookCrudService = Depends(get_book_repository)
 ):
     """
     Получение информации о конкретной книге по ID.
@@ -69,7 +70,7 @@ async def get_book(
 @app.post("/books", response_model=Book, status_code=201, tags=["books"])
 async def add_book(
     book: BookCreate,
-    repo: BookRepository = Depends(get_book_repository)
+    repo: CRUDServiceInterface[Book, BookCreate, BookUpdate] = Depends(get_book_repository)
 ):
     """
     Добавление новой книги в каталог.
@@ -81,7 +82,7 @@ async def add_book(
 async def update_book(
     book_id: int = Path(..., description="ID книги"),
     book_update: BookUpdate = None,
-    repo: BookRepository = Depends(get_book_repository)
+    repo: CRUDServiceInterface[Book, BookCreate, BookUpdate] = Depends(get_book_repository)
 ):
     """
     Обновление информации о книге.
@@ -97,7 +98,7 @@ async def update_book(
 @app.delete("/books/{book_id}", tags=["books"])
 async def delete_book(
     book_id: int = Path(..., description="ID книги"),
-    repo: BookRepository = Depends(get_book_repository)
+    repo: CRUDServiceInterface[Book, BookCreate, BookUpdate] = Depends(get_book_repository)
 ):
     """
     Удаление книги из каталога.
