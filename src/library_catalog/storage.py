@@ -6,6 +6,7 @@ from typing import Dict, Any, List
 from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, Table, MetaData
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
+from pathlib import Path as FilePath
 
 
 Base = declarative_base()
@@ -41,8 +42,9 @@ class RepositoryInterface(ABC):
 class FileRepository(RepositoryInterface):
     """Хранилище данных на основе JSON-файла."""
     
-    def __init__(self, file_path: str):
-        self.file_path = file_path
+    def __init__(self):
+        self.file_path = FilePath(__file__).parent.parent.parent / "data" / "books.json"
+        os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
     
     def load_data(self) -> Dict[str, Any]:
         """Загрузить данные из файла."""

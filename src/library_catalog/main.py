@@ -2,15 +2,11 @@ import os
 import uvicorn
 from fastapi import FastAPI, HTTPException, Depends, Query, Path
 from typing import List, Optional
-from pathlib import Path as FilePath
 
 from .models import Book, BookCreate, BookUpdate, AvailabilityStatus
 from .service import BookCrudService, CRUDServiceInterface
 from .storage import RepositoryInterface, FileRepository, JsonBinRepository, DbPostgresRepository
 
-
-BOOKS_FILE_PATH = FilePath(__file__).parent.parent.parent / "data" / "books.json"
-os.makedirs(os.path.dirname(BOOKS_FILE_PATH), exist_ok=True)
 
 app = FastAPI(
     title="Библиотечный каталог",
@@ -23,7 +19,7 @@ def get_storage() -> RepositoryInterface:
     storage_type = os.getenv("STORAGE_TYPE", "file")
     
     if storage_type == "file":
-        return FileRepository(file_path=str(BOOKS_FILE_PATH))
+        return FileRepository()
     elif storage_type == "jsonbin":
         return JsonBinRepository()
     elif storage_type == "db":
