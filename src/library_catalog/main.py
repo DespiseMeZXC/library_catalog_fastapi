@@ -7,6 +7,7 @@ from pathlib import Path as FilePath
 from .models import Book, BookCreate, BookUpdate, AvailabilityStatus
 from .repositories import BookRepository
 from .storage import Storage, FileStorage, JsonBinStorage
+from .openlibrary_api import OpenLibraryApi
 
 
 BOOKS_FILE_PATH = FilePath(__file__).parent.parent.parent / "data" / "books.json"
@@ -72,6 +73,7 @@ async def add_book(
 ):
     """
     Добавление новой книги в каталог.
+    Также получает дополнительную информацию о книге из Open Library API.
     """
     return repo.create(book)
 

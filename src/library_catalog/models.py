@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from pydantic import BaseModel, HttpUrl
+from typing import Optional
 from enum import Enum
 
 
@@ -23,6 +23,10 @@ class BookCreate(BookBase):
 
 class Book(BookBase):
     id: int
+    # Дополнительные поля с информацией из Open Library API
+    cover_url: Optional[HttpUrl] = None
+    description: Optional[str] = None
+    rating: Optional[float] = None
     
 
 class BookUpdate(BaseModel):

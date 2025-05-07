@@ -5,6 +5,7 @@ from typing import List, Optional, Dict, Any
 import requests
 from .models import Book, BookCreate, BookUpdate, AvailabilityStatus
 from .storage import Storage
+from .openlibrary_api import OpenLibraryApi
 
 
 class BookRepository:
@@ -18,6 +19,7 @@ class BookRepository:
         :param storage: Хранилище данных
         """
         self.storage = storage
+        self.openlibrary_api = OpenLibraryApi()  # Инициализация объекта OpenLibraryApi
         
         # Загружаем данные из хранилища
         data = self.storage.load_data()
@@ -86,6 +88,19 @@ class BookRepository:
         book_dict = book.model_dump()
         book_dict["id"] = book_id
         
+        # Обогащаем данные книги информацией из Open Library API
+        cover_url, description, rating = self.openlibrary_api.enrich_book_data(
+            book_dict["title"],
+        )
+        
+        # Добавляем полученные данные к книге
+        if cover_url:
+            book_dict["cover_url"] = cover_url
+        if description:
+            book_dict["description"] = description
+        if rating:
+            book_dict["rating"] = rating
+        
         self.books_dict[book_id] = book_dict
         
         self._save()
@@ -111,6 +126,20 @@ class BookRepository:
             if value is not None:
                 book_data[field] = value
         
+        # Если изменился автор или название, обновляем метаданные из Open Library
+        if "title" in update_data:
+            cover_url, description, rating = self.openlibrary_api.enrich_book_data(
+                book_data["title"]
+            )
+            
+            # Обновляем метаданные, если они получены
+            if cover_url:
+                book_data["cover_url"] = cover_url
+            if description:
+                book_data["description"] = description
+            if rating:
+                book_data["rating"] = rating
+                
         self.books_dict[book_id] = book_data
         
         self._save()
