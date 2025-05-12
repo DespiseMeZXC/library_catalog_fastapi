@@ -58,7 +58,7 @@ T = TypeVar('T')  # Тип результата поиска
 D = TypeVar('D')  # Тип детальной информации
 
 
-class ExternalApiProvider(Generic[T, D], ABC):
+class BaseApiClient(Generic[T, D], ABC):
     """
     Абстрактный класс для работы с внешними API.
     Определяет общий интерфейс для взаимодействия с любыми внешними API.
@@ -97,7 +97,7 @@ class ExternalApiProvider(Generic[T, D], ABC):
         pass
 
 
-class BookInfoProvider(ExternalApiProvider[Dict[str, Any], Dict[str, Any]], ABC):
+class BookInfoProvider(BaseApiClient[Dict[str, Any], Dict[str, Any]], ABC):
     """
     Абстрактный класс для провайдеров информации о книгах.
     Расширяет базовый класс ExternalApiProvider для работы с книжными API.
