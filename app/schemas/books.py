@@ -45,3 +45,8 @@ class BookQueryParams(BaseModel):
     genre: Optional[str] = None
     availability: Optional[AvailabilityStatus] = None
 
+
+class EnrichBookData(BaseModel):
+    cover_url: Optional[HttpUrl] = None
+    description: Optional[str] = None
+    rating: Optional[float] = None

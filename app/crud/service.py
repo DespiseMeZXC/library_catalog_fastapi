@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from app.schemas.books import Book, BookCreate, BookUpdate, AvailabilityStatus
+from app.schemas.books import Book, BookCreate, BookUpdate, AvailabilityStatus, EnrichBookData
 from app.interfaces.books import RepositoryInterface, CRUDServiceInterface
 from app.database import DbPostgresRepository
 from app.services.openlibrary_api import OpenLibraryApi
@@ -164,17 +164,15 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
         book_dict["id"] = next_id
         
         # Обогащаем данные книги информацией из Open Library API
-        cover_url, description, rating = self.openlibrary_api.enrich_book_data(
-            book_dict["title"],
-        )
+        enriched_data = self.openlibrary_api.enrich_book_data(book_dict["title"])
         
         # Добавляем полученные данные к книге
-        if cover_url:
-            book_dict["cover_url"] = cover_url
-        if description:
-            book_dict["description"] = description
-        if rating:
-            book_dict["rating"] = rating
+        if enriched_data.cover_url:
+            book_dict["cover_url"] = enriched_data.cover_url
+        if enriched_data.description:
+            book_dict["description"] = enriched_data.description
+        if enriched_data.rating:
+            book_dict["rating"] = enriched_data.rating
         
         new_book = Book(**book_dict)
         
@@ -217,17 +215,15 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
         
         # Если изменился автор или название, обновляем метаданные из Open Library
         if "title" in update_data:
-            cover_url, description, rating = self.openlibrary_api.enrich_book_data(
-                book_dict["title"]
-            )
+            enriched_data = self.openlibrary_api.enrich_book_data(book_dict["title"])
             
             # Обновляем метаданные, если они получены
-            if cover_url:
-                book_dict["cover_url"] = cover_url
-            if description:
-                book_dict["description"] = description
-            if rating:
-                book_dict["rating"] = rating
+            if enriched_data.cover_url:
+                book_dict["cover_url"] = enriched_data.cover_url
+            if enriched_data.description:
+                book_dict["description"] = enriched_data.description
+            if enriched_data.rating:
+                book_dict["rating"] = enriched_data.rating
         
         updated_book = Book(**book_dict)
         

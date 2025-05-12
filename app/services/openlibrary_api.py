@@ -4,7 +4,7 @@ from pydantic import HttpUrl
 
 from app.interfaces.books import BookInfoProvider
 from app.utils.logger import setup_logger
-
+from app.schemas.books import EnrichBookData
 
 # Настраиваем логгер для модуля openlibrary_api
 logger = setup_logger("app.services.openlibrary_api")
@@ -167,7 +167,7 @@ class OpenLibraryApi(BookInfoProvider):
             logger.error(f"Ошибка при получении описания книги: {e}")
             return None
     
-    def enrich_book_data(self, title: str) -> Tuple[Optional[HttpUrl], Optional[str], Optional[float]]:
+    def enrich_book_data(self, title: str) -> EnrichBookData:
         """
         Получение дополнительной информации о книге из Open Library.
         
@@ -201,7 +201,7 @@ class OpenLibraryApi(BookInfoProvider):
                 edition_id = book_search_result["edition_key"][0]
                 cover_url = self.get_cover_url(edition_id)
             
-            return cover_url, description, rating
+            return EnrichBookData(cover_url=cover_url, description=description, rating=rating)
         except Exception as e:
             logger.error(f"Ошибка при обогащении данных книги: {e}")
-            return None, None, None
+            return None
