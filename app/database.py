@@ -161,6 +161,10 @@ class DbPostgresRepository(RepositoryInterface):
         logger.debug(f"Сохранение книги в PostgreSQL: {data.get('title')}")
         session = self.Session()
         try:
+            # Обрабатываем поля HttpUrl, преобразуя их в строки
+            cover_url = data.get("cover_url")
+            cover_url_str = str(cover_url) if cover_url is not None else None
+            
             # Создаем объект SQLAlchemy из словаря
             book = self.books_table(
                 id=data["id"],
@@ -170,7 +174,7 @@ class DbPostgresRepository(RepositoryInterface):
                 genre=data["genre"],
                 pages=data["pages"],
                 availability=data["availability"],
-                cover_url=data.get("cover_url"),
+                cover_url=cover_url_str,
                 description=data.get("description"),
                 rating=data.get("rating")
             )
@@ -208,6 +212,10 @@ class DbPostgresRepository(RepositoryInterface):
         try:
             book = session.query(self.books_table).filter(self.books_table.id == data["id"]).first()
             if book:
+                # Обрабатываем поля HttpUrl, преобразуя их в строки
+                cover_url = data.get("cover_url")
+                cover_url_str = str(cover_url) if cover_url is not None else None
+                
                 # Обновляем атрибуты объекта
                 book.title = data["title"]
                 book.author = data["author"]
@@ -215,7 +223,7 @@ class DbPostgresRepository(RepositoryInterface):
                 book.genre = data["genre"]
                 book.pages = data["pages"]
                 book.availability = data["availability"]
-                book.cover_url = data.get("cover_url")
+                book.cover_url = cover_url_str
                 book.description = data.get("description")
                 book.rating = data.get("rating")
                 session.commit()
