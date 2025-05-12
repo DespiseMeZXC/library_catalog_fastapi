@@ -3,3 +3,6 @@ __pycache__/
 
 data/books.json
 .env
+
+logs/
+data/

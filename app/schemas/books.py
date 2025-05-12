@@ -37,3 +37,16 @@ class BookUpdate(BaseModel):
     pages: Optional[int] = None
     availability: Optional[AvailabilityStatus] = None
 
+
+class BookQueryParams(BaseModel):
+    offset: int = 0
+    limit: int = 10
+    author: Optional[str] = None
+    genre: Optional[str] = None
+    availability: Optional[AvailabilityStatus] = None
+
+
+class EnrichBookData(BaseModel):
+    cover_url: Optional[HttpUrl] = None
+    description: Optional[str] = None
+    rating: Optional[float] = None

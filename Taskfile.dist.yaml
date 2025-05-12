@@ -1,0 +1,42 @@
+version: "3"
+
+tasks:
+  default:
+    cmds:
+      - echo "Привет, я Taskfile упрощающий работу с приложением"
+
+  venv:
+    cmds:
+      - python -m venv .venv
+
+  env:
+    cmds:
+      - cp .env.example .env
+
+  install:
+    cmds:
+      - pip install -r requirements.txt
+  
+  run:
+    cmds:
+      - uvicorn app.library_catalog.main:app --reload
+
+  up:
+    cmds:
+      - docker-compose up -d
+
+  down:
+    cmds:
+      - docker-compose down
+
+  restart:
+    cmds:
+      - docker-compose restart
+
+  logs:
+    cmds:
+      - docker-compose logs -f
+
+  ps:
+    cmds:
+      - docker-compose ps
