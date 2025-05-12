@@ -1,18 +1,14 @@
 import os
-import uvicorn
-from fastapi import FastAPI, HTTPException, Depends, Query, Path
-from typing import List, Optional
+from fastapi import APIRouter, HTTPException, Depends, Path
+from typing import List
 
-from .models import Book, BookCreate, BookUpdate, AvailabilityStatus
-from .service import BookCrudService, CRUDServiceInterface
-from .storage import RepositoryInterface, FileRepository, JsonBinRepository, DbPostgresRepository
+from app.schemas.books import Book, BookCreate, BookUpdate, BookQueryParams
+from app.crud.service import BookCrudService, CRUDServiceInterface
+from app.database import RepositoryInterface, FileRepository, JsonBinRepository, DbPostgresRepository
 
 
-app = FastAPI(
-    title="Библиотечный каталог",
-    description="API для управления библиотечным каталогом",
-    version="0.1.0"
-)
+router = APIRouter(tags=["books"])
+
 
 def get_storage() -> RepositoryInterface:
     """Функция-зависимость для получения хранилища данных."""
@@ -31,26 +27,22 @@ def get_book_repository(storage: RepositoryInterface = Depends(get_storage)):
     """Функция-зависимость для получения репозитория книг."""
     return BookCrudService(storage=storage)
 
-@app.get("/")
+@router.get("/")
 async def root():
     """Корневой маршрут, возвращающий приветственное сообщение."""
     return {"message": "Добро пожаловать в API библиотечного каталога"}
 
-@app.get("/books", response_model=List[Book], tags=["books"])
+@router.get("/books", response_model=List[Book], tags=["books"])
 async def get_books(
-    offset: int = Query(0, description="Сколько книг пропустить"),
-    limit: int = Query(10, description="Максимальное количество книг для возврата"),
-    author: Optional[str] = Query(None, description="Фильтр по автору"),
-    genre: Optional[str] = Query(None, description="Фильтр по жанру"),
-    availability: Optional[AvailabilityStatus] = Query(None, description="Фильтр по доступности"),
+    query_params: BookQueryParams = Depends(),
     repo: CRUDServiceInterface[Book, BookCreate, BookUpdate] = Depends(get_book_repository)
 ):
     """
     Получение списка всех книг с возможностью фильтрации.
     """
-    return repo.get_all(offset=offset, limit=limit, author=author, genre=genre, availability=availability)
+    return repo.get_all(offset=query_params.offset, limit=query_params.limit, author=query_params.author, genre=query_params.genre, availability=query_params.availability)
 
-@app.get("/books/{book_id}", response_model=Book, tags=["books"])
+@router.get("/books/{book_id}", response_model=Book, tags=["books"])
 async def get_book(
     book_id: int = Path(..., description="ID книги"),
     repo: BookCrudService = Depends(get_book_repository)
@@ -63,7 +55,7 @@ async def get_book(
         raise HTTPException(status_code=404, detail=f"Книга с ID {book_id} не найдена")
     return book
 
-@app.post("/books", response_model=Book, status_code=201, tags=["books"])
+@router.post("/books", response_model=Book, status_code=201, tags=["books"])
 async def add_book(
     book: BookCreate,
     repo: CRUDServiceInterface[Book, BookCreate, BookUpdate] = Depends(get_book_repository)
@@ -74,7 +66,7 @@ async def add_book(
     """
     return repo.create(book)
 
-@app.put("/books/{book_id}", response_model=Book, tags=["books"])
+@router.put("/books/{book_id}", response_model=Book, tags=["books"])
 async def update_book(
     book_id: int = Path(..., description="ID книги"),
     book_update: BookUpdate = None,
@@ -91,7 +83,7 @@ async def update_book(
         raise HTTPException(status_code=404, detail=f"Книга с ID {book_id} не найдена")
     return updated_book
 
-@app.delete("/books/{book_id}", tags=["books"])
+@router.delete("/books/{book_id}", tags=["books"])
 async def delete_book(
     book_id: int = Path(..., description="ID книги"),
     repo: CRUDServiceInterface[Book, BookCreate, BookUpdate] = Depends(get_book_repository)
@@ -102,6 +94,3 @@ async def delete_book(
     if not repo.delete(book_id):
         raise HTTPException(status_code=404, detail=f"Книга с ID {book_id} не найдена")
     return {"message": f"Книга с ID {book_id} успешно удалена"}
-
-if __name__ == "__main__":
-    uvicorn.run("src.library_catalog.main:app", host="127.0.0.1", port=8000, reload=True)

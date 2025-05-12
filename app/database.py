@@ -1,46 +1,17 @@
 import os
 import json
 import requests
-from abc import ABC, abstractmethod
-from typing import Dict, Any, List
-from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, Table, MetaData
-from sqlalchemy.ext.declarative import declarative_base
+from typing import Dict, Any
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from pathlib import Path as FilePath
 
-
-Base = declarative_base()
-
-# Определение таблицы книг
-class BookTable(Base):
-    __tablename__ = 'books'
-    id = Column(Integer, primary_key=True)
-    title = Column(String(255), nullable=False)
-    author = Column(String(255), nullable=False)
-    publication_year = Column(Integer, nullable=False)
-    genre = Column(String(100), nullable=False)
-    pages = Column(Integer, nullable=False)
-    availability = Column(String(50), nullable=False)
-    cover_url = Column(String(255), nullable=True)
-    description = Column(Text, nullable=True)
-    rating = Column(Integer, nullable=True)
-
-class RepositoryInterface(ABC):
-    """Абстрактный интерфейс для хранилищ данных."""
-    
-    @abstractmethod
-    def load_data(self) -> Dict[str, Any]:
-        """Загрузить данные из хранилища."""
-        pass
-    
-    @abstractmethod
-    def save_data(self, data: Dict[str, Any]) -> None:
-        """Сохранить данные в хранилище."""
-        pass
+from app.models.books import Book, Base
+from app.interfaces.books import RepositoryInterface
 
 
 class FileRepository(RepositoryInterface):
-    """Хранилище данных на основе JSON-файла."""
+    """Хранилище данных     а основе JSON-файла."""
     
     def __init__(self):
         self.file_path = FilePath(__file__).parent.parent.parent / "data" / "books.json"
@@ -111,7 +82,7 @@ class DbPostgresRepository(RepositoryInterface):
         
         session_factory = sessionmaker(bind=self.engine)
         self.Session = scoped_session(session_factory)
-        self.books_table = BookTable
+        self.books_table = Book
              
     @property
     def get_link_db(self) -> str:

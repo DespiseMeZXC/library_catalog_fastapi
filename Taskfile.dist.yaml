@@ -19,7 +19,7 @@ tasks:
   
   run:
     cmds:
-      - uvicorn src.library_catalog.main:app --reload
+      - uvicorn app.library_catalog.main:app --reload
 
   up:
     cmds:

@@ -1,47 +1,9 @@
-from typing import List, Optional, TypeVar, Generic, Dict, Any
-from abc import ABC, abstractmethod
-from pydantic import BaseModel
-from .models import Book, BookCreate, BookUpdate, AvailabilityStatus
-from .storage import RepositoryInterface, DbPostgresRepository
-from .openlibrary_api import OpenLibraryApi
+from typing import List, Optional
 
-
-# Определяем типовые переменные для обобщенного репозитория
-T = TypeVar('T', bound=BaseModel)  # Тип модели
-C = TypeVar('C', bound=BaseModel)  # Тип модели для создания
-U = TypeVar('U', bound=BaseModel)  # Тип модели для обновления
-
-
-class CRUDServiceInterface(Generic[T, C, U], ABC):
-    """
-    Абстрактный интерфейс репозитория для работы с моделями данных.
-    Определяет основные операции CRUD.
-    """
-    
-    @abstractmethod
-    def get_all(self, offset: int = 0, limit: int = 100, **filters) -> List[T]:
-        """Получение списка всех элементов с возможностью фильтрации."""
-        pass
-    
-    @abstractmethod
-    def get_by_id(self, item_id: int) -> Optional[T]:
-        """Получение элемента по ID."""
-        pass
-    
-    @abstractmethod
-    def create(self, item: C) -> T:
-        """Создание нового элемента."""
-        pass
-    
-    @abstractmethod
-    def update(self, item_id: int, item_update: U) -> Optional[T]:
-        """Обновление данных элемента."""
-        pass
-    
-    @abstractmethod
-    def delete(self, item_id: int) -> bool:
-        """Удаление элемента по ID."""
-        pass
+from app.schemas.books import Book, BookCreate, BookUpdate, AvailabilityStatus
+from app.interfaces.books import RepositoryInterface, CRUDServiceInterface
+from app.database import DbPostgresRepository
+from app.services.openlibrary_api import OpenLibraryApi
 
 
 class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
