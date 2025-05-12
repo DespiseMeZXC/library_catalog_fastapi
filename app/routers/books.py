@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, Path
 from typing import List
 
 from app.schemas.books import Book, BookCreate, BookUpdate, BookQueryParams
-from app.crud.service import BookCrudService, CRUDServiceInterface
+from app.crud.books import BookCrudService, CRUDServiceInterface
 from app.database import RepositoryInterface, FileRepository, JsonBinRepository, DbPostgresRepository
 from app.utils.logger import setup_logger
 
