@@ -4,6 +4,11 @@ from app.schemas.books import Book, BookCreate, BookUpdate, AvailabilityStatus
 from app.interfaces.books import RepositoryInterface, CRUDServiceInterface
 from app.database import DbPostgresRepository
 from app.services.openlibrary_api import OpenLibraryApi
+from app.utils.logger import setup_logger
+
+
+# Настраиваем логгер для CRUD сервиса
+logger = setup_logger("app.crud.service")
 
 
 class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
@@ -18,6 +23,7 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
         """
         self.storage = storage
         self.openlibrary_api = OpenLibraryApi()  # Инициализация объекта OpenLibraryApi
+        logger.debug(f"Инициализирован BookCrudService с хранилищем типа {type(storage).__name__}")
     
     @property
     def is_db_storage(self) -> bool:
@@ -27,15 +33,20 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
     def _get_next_id(self) -> int:
         """Получение следующего ID для новой книги."""
         if self.is_db_storage:
-            return self.storage.get_next_id()
+            next_id = self.storage.get_next_id()
+            logger.debug(f"Получен следующий ID из БД: {next_id}")
+            return next_id
         else:
             # Для JSON хранилища загружаем только next_id
             data = self.storage.load_data()
-            return data.get("next_id", 1)
+            next_id = data.get("next_id", 1)
+            logger.debug(f"Получен следующий ID из JSON: {next_id}")
+            return next_id
     
     def _update_next_id(self, next_id: int) -> None:
         """Обновление счетчика ID в хранилище."""
         if not self.is_db_storage:
+            logger.debug(f"Обновление счетчика ID: {next_id}")
             data = self.storage.load_data()
             data["next_id"] = next_id
             self.storage.save_data(data)
@@ -55,6 +66,7 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
         :param availability: Фильтр по доступности
         :return: Список книг
         """
+        
         if self.is_db_storage:
             # Для БД используем встроенную фильтрацию
             books_data = self.storage.load_data()
@@ -83,6 +95,7 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
                 }
                 filtered_books.append(Book(**book_dict))
         else:
+            logger.debug("Использование JSON для получения списка книг")
             # Для JSON хранилища загружаем данные и фильтруем
             data = self.storage.load_data()
             filtered_books = []
@@ -98,7 +111,8 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
                 book = Book(**book_data)
                 filtered_books.append(book)
         
-        return filtered_books[offset:offset + limit]
+        result = filtered_books[offset:offset + limit]
+        return result
     
     def get_by_id(self, book_id: int) -> Optional[Book]:
         """
@@ -143,6 +157,7 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
         :param book: Данные книги
         :return: Созданная книга с ID
         """
+        
         next_id = self._get_next_id()
         
         book_dict = book.model_dump()
@@ -185,6 +200,7 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
         :param book_update: Данные для обновления (только непустые поля будут обновлены)
         :return: Обновленная книга или None, если книга не найдена
         """
+        
         # Получаем текущие данные книги
         book = self.get_by_id(book_id)
         if not book:
@@ -216,10 +232,8 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
         updated_book = Book(**book_dict)
         
         if self.is_db_storage:
-            # Для БД обновляем только одну книгу
             self.storage.update_data(book_dict)
         else:
-            # Для JSON хранилища обновляем книгу в списке
             data = self.storage.load_data()
             books = data.get("books", [])
             
@@ -231,7 +245,6 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
             data["books"] = books
             self.storage.save_data(data)
         
-        
         return updated_book
     
     def delete(self, book_id: int) -> bool:
@@ -241,20 +254,19 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
         :param book_id: ID книги
         :return: True, если книга успешно удалена, иначе False
         """
+        
         # Проверяем наличие книги
         book = self.get_by_id(book_id)
         if not book:
             return False
         
         if self.is_db_storage:
-            # Для БД удаляем только одну книгу
-            self.storage.delete_data(book.model_dump())
+            self.storage.delete_data({"id": book_id})
         else:
-            # Для JSON хранилища удаляем книгу из списка
             data = self.storage.load_data()
             books = data.get("books", [])
             
-            data["books"] = [book for book in books if book["id"] != book_id]
+            data["books"] = [book_data for book_data in books if book_data["id"] != book_id]
             self.storage.save_data(data)
         
         return True
