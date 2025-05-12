@@ -3,6 +3,11 @@ from typing import Dict, Any, Optional, Tuple
 from pydantic import HttpUrl
 
 from app.interfaces.books import BookInfoProvider
+from app.utils.logger import setup_logger
+
+
+# Настраиваем логгер для модуля openlibrary_api
+logger = setup_logger("app.services.openlibrary_api")
 
 
 class OpenLibraryApi(BookInfoProvider):
@@ -32,10 +37,10 @@ class OpenLibraryApi(BookInfoProvider):
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
-            print(f"Ошибка при запросе к API: {e}")
+            logger.error(f"Ошибка при запросе к API: {e}")
             return None
         except ValueError as e:
-            print(f"Ошибка при разборе JSON: {e}")
+            logger.error(f"Ошибка при разборе JSON: {e}")
             return None
     
     def search(self, query: str, **kwargs) -> Optional[Dict[str, Any]]:
@@ -54,7 +59,7 @@ class OpenLibraryApi(BookInfoProvider):
                 return result["docs"][0]
             return None
         except Exception as e:
-            print(f"Ошибка при поиске: {e}")
+            logger.error(f"Ошибка при поиске: {e}")
             return None
     
     def get_details(self, item_id: str) -> Optional[Dict[str, Any]]:
@@ -67,7 +72,7 @@ class OpenLibraryApi(BookInfoProvider):
         try:
             return self.make_request(f"{item_id}.json")
         except Exception as e:
-            print(f"Ошибка при получении деталей: {e}")
+            logger.error(f"Ошибка при получении деталей: {e}")
             return None
     
     def search_book(self, title: str) -> Optional[Dict[str, Any]]:
@@ -81,7 +86,7 @@ class OpenLibraryApi(BookInfoProvider):
             query = f"title:{title}"
             return self.search(query, limit=1)
         except Exception as e:
-            print(f"Ошибка при поиске книги: {e}")
+            logger.error(f"Ошибка при поиске книги: {e}")
             return None
     
     def get_book_details(self, key: str) -> Optional[Dict[str, Any]]:
@@ -94,7 +99,7 @@ class OpenLibraryApi(BookInfoProvider):
         try:
             return self.get_details(key)
         except Exception as e:
-            print(f"Ошибка при получении деталей книги: {e}")
+            logger.error(f"Ошибка при получении деталей книги: {e}")
             return None
     
     def get_book_rating(self, key: str) -> Optional[float]:
@@ -113,7 +118,7 @@ class OpenLibraryApi(BookInfoProvider):
                 return result["summary"]["average"]
             return None
         except Exception as e:
-            print(f"Ошибка при получении рейтинга книги: {e}")
+            logger.error(f"Ошибка при получении рейтинга книги: {e}")
             return None
     
     def get_cover_url(self, book_id: str, size: str = "M") -> Optional[HttpUrl]:
@@ -137,7 +142,7 @@ class OpenLibraryApi(BookInfoProvider):
             
             return cover_url
         except Exception as e:
-            print(f"Ошибка при получении URL обложки: {e}")
+            logger.error(f"Ошибка при получении URL обложки: {e}")
             return None
     
     def get_book_description(self, book_data: Dict[str, Any]) -> Optional[str]:
@@ -159,7 +164,7 @@ class OpenLibraryApi(BookInfoProvider):
             
             return description
         except Exception as e:
-            print(f"Ошибка при получении описания книги: {e}")
+            logger.error(f"Ошибка при получении описания книги: {e}")
             return None
     
     def enrich_book_data(self, title: str) -> Tuple[Optional[HttpUrl], Optional[str], Optional[float]]:
@@ -198,5 +203,5 @@ class OpenLibraryApi(BookInfoProvider):
             
             return cover_url, description, rating
         except Exception as e:
-            print(f"Ошибка при обогащении данных книги: {e}")
+            logger.error(f"Ошибка при обогащении данных книги: {e}")
             return None, None, None
