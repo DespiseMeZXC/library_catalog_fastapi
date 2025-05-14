@@ -163,31 +163,51 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
         """
         
         # Получаем текущие данные книги
-        book = self.storage.get_data_by_id(book_id)
-        if not book:
+        current_book = None
+        
+        if self.storage.storage_type == StorageType.DB:
+            # Для БД используем метод get_data_by_id
+            current_book = self.storage.get_data_by_id(book_id)
+        else:
+            # Для JSON хранилища ищем книгу в загруженных данных
+            data = self.storage.load_data()
+            for book_data in data.get("books", []):
+                if book_data["id"] == book_id:
+                    current_book = book_data
+                    break
+        
+        if not current_book:
             logger.warning(f"Книга с ID {book_id} не найдена для обновления")
             return None
         
         # Получаем данные для обновления
         update_data = book_update.model_dump(exclude_unset=True)
-        update_data["id"] = book_id
-        update_data["cover_url"] = None
-        update_data["description"] = None
-        update_data["rating"] = None
+        
+        # Если используем JSON хранилище, создаем полный словарь с обновленными данными
+        if self.storage.storage_type != StorageType.DB:
+            book_dict = current_book.copy()
+            book_dict.update(update_data)
+        else:
+            # Для БД достаточно только обновляемых полей
+            book_dict = update_data
+        
+        book_dict["id"] = book_id
         
         # Если изменилось название, обновляем метаданные из Open Library
         if "title" in update_data:
             enriched_data = await self.openlibrary_api.enrich_book_data(update_data["title"])
             # Обновляем метаданные, если они получены
             if enriched_data.cover_url:
-                update_data["cover_url"] = str(enriched_data.cover_url)
+                book_dict["cover_url"] = str(enriched_data.cover_url)
             if enriched_data.description:
-                update_data["description"] = enriched_data.description
+                book_dict["description"] = enriched_data.description
             if enriched_data.rating:
-                update_data["rating"] = enriched_data.rating
-        
+                book_dict["rating"] = enriched_data.rating
+            book_dict["asdasd"] = 5
         if self.storage.storage_type == StorageType.DB:
-            book_dict = self.storage.update_data(update_data)
+            updated_book_dict = self.storage.update_data(book_dict)
+            if updated_book_dict:
+                return Book(**updated_book_dict)
         else:
             data = self.storage.load_data()
             books = data.get("books", [])
@@ -195,12 +215,11 @@ class BookCrudService(CRUDServiceInterface[Book, BookCreate, BookUpdate]):
             for i, book_data in enumerate(books):
                 if book_data["id"] == book_id:
                     books[i] = book_dict
-                    break
-            
-            data["books"] = books
-            self.storage.save_data(data)
+                    data["books"] = books
+                    self.storage.save_data(data)
+                    return Book(**book_dict)
         
-        return book_dict
+        return None
     
     def delete(self, book_id: int) -> bool:
         """

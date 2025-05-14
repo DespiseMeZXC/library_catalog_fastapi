@@ -29,7 +29,7 @@ class RepositoryInterface(ABC):
         """Получить следующий ID."""
         pass
     
-    @property
+    @abstractmethod
     def storage_type(self) -> str:
         """Получить тип хранилища."""
         pass
@@ -39,7 +39,7 @@ class DbRepositoryInterface(RepositoryInterface):
     """Абстрактный интерфейс для хранилищ данных на основе PostgreSQL."""
     storage_type: StorageType = StorageType.DB
     
-    @property
+    @abstractmethod
     def get_link_db(self) -> str:
         """Получить ссылку на базу данных."""
         pass

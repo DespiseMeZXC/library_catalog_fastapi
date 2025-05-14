@@ -88,7 +88,7 @@ async def update_book(
         logger.warning(f"Книга с ID {book_id} не найдена для обновления")
         raise HTTPException(status_code=404, detail=f"Книга с ID {book_id} не найдена")
     
-    logger.info(f"Книга успешно обновлена: {updated_book['title']} (ID: {updated_book['id']})")
+    logger.info(f"Книга успешно обновлена: {updated_book.title} (ID: {updated_book.id})")
     return updated_book
 
 @router.delete("/books/{book_id}")

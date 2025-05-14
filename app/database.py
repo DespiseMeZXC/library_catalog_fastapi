@@ -190,34 +190,51 @@ class DbPostgresRepository(RepositoryInterface):
         finally:
             session.close()
     
-    def save_data(self, data: Book) -> None:
+    def save_data(self, data: Dict[str, Any]) -> None:
         """Сохранить данные в PostgreSQL."""
-        logger.debug(f"Сохранение книги в PostgreSQL: {data.get('title')}")
+        logger.debug(f"Сохранение книги в PostgreSQL: {data.get('title', 'Неизвестная книга')}")
         session = self.Session()
         try:
+            # Валидация данных с помощью Pydantic
+            try:
+                # Если data уже является Pydantic моделью
+                if hasattr(data, 'model_dump'):
+                    book_data = data.model_dump()
+                elif hasattr(data, 'dict'):
+                    book_data = data.dict()
+                else:
+                    # Создаем Pydantic модель из словаря для валидации
+                    from app.schemas.books import FullBookData
+                    validated_book = FullBookData(**data)
+                    book_data = validated_book.model_dump()
+            except Exception as validation_error:
+                logger.error(f"Ошибка валидации данных через Pydantic: {validation_error}")
+                raise ValueError(f"Данные не соответствуют схеме Book: {validation_error}")
+            
             # Обрабатываем поля HttpUrl, преобразуя их в строки
-            cover_url = data.get("cover_url")
+            cover_url = book_data.get("cover_url")
             cover_url_str = str(cover_url) if cover_url is not None else None
             
             # Создаем объект SQLAlchemy из словаря
             book = self.books_table(
-                id=data["id"],
-                title=data["title"],
-                author=data["author"],
-                publication_year=data["publication_year"],
-                genre=data["genre"],
-                pages=data["pages"],
-                availability=data["availability"],
+                id=book_data["id"],
+                title=book_data["title"],
+                author=book_data["author"],
+                publication_year=book_data["publication_year"],
+                genre=book_data["genre"],
+                pages=book_data["pages"],
+                availability=book_data["availability"],
                 cover_url=cover_url_str,
-                description=data.get("description"),
-                rating=data.get("rating")
+                description=book_data.get("description"),
+                rating=book_data.get("rating")
             )
             session.add(book)
             session.commit()
-            logger.info(f"Книга '{data.get('title')}' успешно сохранена в PostgreSQL")
+            logger.info(f"Книга '{book_data.get('title')}' успешно сохранена в PostgreSQL")
         except Exception as e:
             logger.error(f"Ошибка при сохранении книги в PostgreSQL: {e}")
             session.rollback()
+            raise
         finally:
             session.close()
     
@@ -244,18 +261,34 @@ class DbPostgresRepository(RepositoryInterface):
         logger.debug(f"Обновление книги в PostgreSQL: ID {data.get('id')}")
         session = self.Session()
         try:
+            # Валидация данных с помощью Pydantic
+            try:
+                # Если data уже является Pydantic моделью
+                if hasattr(data, 'model_dump'):
+                    book_data = data.model_dump()
+                elif hasattr(data, 'dict'):
+                    book_data = data.dict()
+                else:
+                    # Создаем Pydantic модель из словаря для валидации
+                    from app.schemas.books import FullBookData
+                    validated_book = FullBookData(**data)
+                    book_data = validated_book.model_dump()
+            except Exception as validation_error:
+                logger.error(f"Ошибка валидации данных через Pydantic: {validation_error}")
+                raise ValueError(f"Данные не соответствуют схеме Book: {validation_error}")
+            
             book = session.query(self.books_table).filter(self.books_table.id == data["id"]).first()
             if book:
                 # Обновляем атрибуты объекта
-                book.title = data["title"]
-                book.author = data["author"]
-                book.publication_year = data["publication_year"]
-                book.genre = data["genre"]
-                book.pages = data["pages"]
-                book.availability = data["availability"]
-                book.cover_url = data["cover_url"]
-                book.description = data["description"]
-                book.rating = data["rating"]
+                book.title = book_data["title"]
+                book.author = book_data["author"]
+                book.publication_year = book_data["publication_year"]
+                book.genre = book_data["genre"]
+                book.pages = book_data["pages"]
+                book.availability = book_data["availability"]
+                book.cover_url = str(book_data["cover_url"])
+                book.description = book_data["description"]
+                book.rating = book_data["rating"]
                 session.commit()
                 logger.info(f"Книга с ID {data.get('id')} успешно обновлена в PostgreSQL")
                 # Преобразуем объект SQLAlchemy в словарь
@@ -278,6 +311,7 @@ class DbPostgresRepository(RepositoryInterface):
         except Exception as e:
             logger.error(f"Ошибка при обновлении книги в PostgreSQL: {e}")
             session.rollback()
+            raise ValueError(f"Ошибка при обновлении книги в PostgreSQL: {e}")
         finally:
             session.close()
     
