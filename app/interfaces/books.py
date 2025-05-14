@@ -1,14 +1,16 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, TypeVar, Generic, Tuple
-from pydantic import BaseModel
-from pydantic import HttpUrl
+from typing import Dict, Any, List, Optional, TypeVar, Generic, Type
+from pydantic import BaseModel, HttpUrl
+
+from app.schemas.books import EnrichBookData, StorageType, BookFilter
 
 
 class RepositoryInterface(ABC):
     """Абстрактный интерфейс для хранилищ данных."""
+    storage_type: StorageType = StorageType.FILE
     
     @abstractmethod
-    def load_data(self) -> Dict[str, Any]:
+    def load_data(self, offset: int = 0, limit: int = 100, **filters: BookFilter) -> Dict[str, Any]:
         """Загрузить данные из хранилища."""
         pass
     
@@ -16,8 +18,47 @@ class RepositoryInterface(ABC):
     def save_data(self, data: Dict[str, Any]) -> None:
         """Сохранить данные в хранилище."""
         pass
+    
+    @abstractmethod
+    def _update_next_id(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Обновление счетчика ID в хранилище."""
+        pass
+    
+    @abstractmethod
+    def _get_next_id(self) -> int:
+        """Получить следующий ID."""
+        pass
+    
+    @abstractmethod
+    def storage_type(self) -> str:
+        """Получить тип хранилища."""
+        pass
 
 
+class DbRepositoryInterface(RepositoryInterface):
+    """Абстрактный интерфейс для хранилищ данных на основе PostgreSQL."""
+    storage_type: StorageType = StorageType.DB
+    
+    @abstractmethod
+    def get_link_db(self) -> str:
+        """Получить ссылку на базу данных."""
+        pass
+    
+    @abstractmethod
+    def get_data_by_id(self, id: int) -> Dict[str, Any]:
+        """Получить данные по ID."""
+        pass
+    
+    @abstractmethod
+    def delete_data(self, data: Dict[str, Any]) -> None:
+        """Удалить данные по ID."""
+        pass
+    
+    @abstractmethod
+    def update_data(self, data: Dict[str, Any]) -> None:
+        """Обновить данные по ID."""
+        pass
+    
 T = TypeVar('T', bound=BaseModel)  # Тип модели
 C = TypeVar('C', bound=BaseModel)  # Тип для создания
 U = TypeVar('U', bound=BaseModel)  # Тип для обновления
@@ -33,18 +74,23 @@ class CRUDServiceInterface(Generic[T, C, U], ABC):
         """Получение списка всех элементов с возможностью фильтрации."""
         pass
     
+    @staticmethod
+    def _convert_model_to_schema(data: Dict[str, Any], model: Type[BaseModel]) -> T:
+        """Конвертация данных в модель."""
+        pass
+    
     @abstractmethod
     def get_by_id(self, item_id: int) -> Optional[T]:
         """Получение элемента по ID."""
         pass
     
     @abstractmethod
-    def create(self, item: C) -> T:
+    async def create(self, item: C) -> T:
         """Создание нового элемента."""
         pass
     
     @abstractmethod
-    def update(self, item_id: int, item_update: U) -> Optional[T]:
+    async def update(self, item_id: int, item_update: U) -> Optional[T]:
         """Обновление данных элемента."""
         pass
     
@@ -52,20 +98,20 @@ class CRUDServiceInterface(Generic[T, C, U], ABC):
     def delete(self, item_id: int) -> bool:
         """Удаление элемента по ID."""
         pass
-
+    
 
 T = TypeVar('T')  # Тип результата поиска
 D = TypeVar('D')  # Тип детальной информации
 
 
-class BaseApiClient(Generic[T, D], ABC):
+class ExternalApiProvider(Generic[T, D], ABC):
     """
     Абстрактный класс для работы с внешними API.
     Определяет общий интерфейс для взаимодействия с любыми внешними API.
     """
     
     @abstractmethod
-    def make_request(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    async def make_request(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         """
         Выполнение HTTP-запроса к API.
         
@@ -76,7 +122,7 @@ class BaseApiClient(Generic[T, D], ABC):
         pass
     
     @abstractmethod
-    def search(self, query: str, **kwargs) -> Optional[T]:
+    async def search(self, query: str, **kwargs) -> Optional[T]:
         """
         Поиск данных в API.
         
@@ -87,7 +133,7 @@ class BaseApiClient(Generic[T, D], ABC):
         pass
     
     @abstractmethod
-    def get_details(self, item_id: str) -> Optional[D]:
+    async def get_details(self, item_id: str) -> Optional[D]:
         """
         Получение детальной информации по идентификатору.
         
@@ -97,14 +143,14 @@ class BaseApiClient(Generic[T, D], ABC):
         pass
 
 
-class BookInfoProvider(BaseApiClient[Dict[str, Any], Dict[str, Any]], ABC):
+class BookInfoProvider(ExternalApiProvider[Dict[str, Any], Dict[str, Any]], ABC):
     """
     Абстрактный класс для провайдеров информации о книгах.
     Расширяет базовый класс ExternalApiProvider для работы с книжными API.
     """
     
     @abstractmethod
-    def search_book(self, title: str) -> Optional[Dict[str, Any]]:
+    async def search_book(self, title: str) -> Optional[Dict[str, Any]]:
         """
         Поиск книги по названию.
         
@@ -114,7 +160,7 @@ class BookInfoProvider(BaseApiClient[Dict[str, Any], Dict[str, Any]], ABC):
         pass
     
     @abstractmethod
-    def get_book_rating(self, key: str) -> Optional[float]:
+    async def get_book_rating(self, key: str) -> Optional[float]:
         """
         Получение рейтинга книги.
         
@@ -124,7 +170,7 @@ class BookInfoProvider(BaseApiClient[Dict[str, Any], Dict[str, Any]], ABC):
         pass
     
     @abstractmethod
-    def get_cover_url(self, book_id: str, size: str = "M") -> Optional[HttpUrl]:
+    async def get_cover_url(self, book_id: str, size: str = "M") -> Optional[HttpUrl]:
         """
         Получение URL обложки книги.
         
@@ -135,7 +181,7 @@ class BookInfoProvider(BaseApiClient[Dict[str, Any], Dict[str, Any]], ABC):
         pass
     
     @abstractmethod
-    def get_book_description(self, book_data: Dict[str, Any]) -> Optional[str]:
+    async def get_book_description(self, book_data: Dict[str, Any]) -> Optional[str]:
         """
         Извлечение описания книги из данных.
         
@@ -145,11 +191,11 @@ class BookInfoProvider(BaseApiClient[Dict[str, Any], Dict[str, Any]], ABC):
         pass
     
     @abstractmethod
-    def enrich_book_data(self, title: str) -> Tuple[Optional[HttpUrl], Optional[str], Optional[float]]:
+    async def enrich_book_data(self, title: str) -> Optional[EnrichBookData]:
         """
         Получение дополнительной информации о книге.
         
         :param title: Название книги
-        :return: Кортеж (URL обложки, описание, рейтинг)
+        :return: Обогащенные данные для книги
         """
         pass

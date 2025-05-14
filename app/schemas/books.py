@@ -8,6 +8,23 @@ class AvailabilityStatus(str, Enum):
     BORROWED = "borrowed"
 
 
+class StorageType(str, Enum):
+    FILE = "file"
+    JSONBIN = "jsonbin"
+    DB = "db"
+
+
+class BookFilter(BaseModel):
+    author: Optional[str] = None
+    genre: Optional[str] = None
+    availability: Optional[AvailabilityStatus] = None
+    limit: Optional[int] = None
+    offset: Optional[int] = None
+
+    class Config:
+        extra = "forbid"  
+
+
 class BookBase(BaseModel):
     title: str
     author: str
@@ -18,7 +35,8 @@ class BookBase(BaseModel):
 
 
 class BookCreate(BookBase):
-    pass
+    class Config:
+        extra = "forbid"  
 
 
 class Book(BookBase):
@@ -28,6 +46,8 @@ class Book(BookBase):
     description: Optional[str] = None
     rating: Optional[float] = None
     
+    class Config:
+        extra = "forbid"  
 
 class BookUpdate(BaseModel):
     title: Optional[str] = None
@@ -36,6 +56,9 @@ class BookUpdate(BaseModel):
     genre: Optional[str] = None
     pages: Optional[int] = None
     availability: Optional[AvailabilityStatus] = None
+    
+    class Config:
+        extra = "forbid"  
 
 
 class BookQueryParams(BaseModel):
@@ -45,8 +68,29 @@ class BookQueryParams(BaseModel):
     genre: Optional[str] = None
     availability: Optional[AvailabilityStatus] = None
 
+    class Config:
+        extra = "forbid"  
 
 class EnrichBookData(BaseModel):
     cover_url: Optional[HttpUrl] = None
     description: Optional[str] = None
     rating: Optional[float] = None
+
+    class Config:
+        extra = "forbid"  
+
+class FullBookData(BaseModel):
+    id: int
+    title: str
+    author: str
+    publication_year: int
+    genre: str
+    pages: int
+    availability: AvailabilityStatus
+    cover_url: Optional[HttpUrl] = None
+    description: Optional[str] = None
+    rating: Optional[float] = None
+    
+    class Config:
+        extra = "forbid" 
+        
