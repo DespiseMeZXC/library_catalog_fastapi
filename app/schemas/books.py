@@ -8,6 +8,20 @@ class AvailabilityStatus(str, Enum):
     BORROWED = "borrowed"
 
 
+class StorageType(str, Enum):
+    FILE = "file"
+    JSONBIN = "jsonbin"
+    DB = "db"
+
+
+class BookFilter(BaseModel):
+    author: Optional[str] = None
+    genre: Optional[str] = None
+    availability: Optional[AvailabilityStatus] = None
+    limit: Optional[int] = None
+    offset: Optional[int] = None
+
+
 class BookBase(BaseModel):
     title: str
     author: str
@@ -47,6 +61,17 @@ class BookQueryParams(BaseModel):
 
 
 class EnrichBookData(BaseModel):
+    cover_url: Optional[HttpUrl] = None
+    description: Optional[str] = None
+    rating: Optional[float] = None
+
+class FullBookData(BaseModel):
+    title: str
+    author: str
+    publication_year: int
+    genre: str
+    pages: int
+    availability: AvailabilityStatus
     cover_url: Optional[HttpUrl] = None
     description: Optional[str] = None
     rating: Optional[float] = None

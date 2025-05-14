@@ -1,6 +1,8 @@
-import requests
-from typing import Dict, Any, Optional, Tuple
+import aiohttp
+import os
+from typing import Dict, Any, Optional
 from pydantic import HttpUrl
+from functools import lru_cache
 
 from app.interfaces.books import BookInfoProvider
 from app.utils.logger import setup_logger
@@ -16,14 +18,21 @@ class OpenLibraryApi(BookInfoProvider):
     Реализует интерфейс BookInfoProvider для получения дополнительной информации о книгах.
     """
     
-    BASE_URL = "https://openlibrary.org"
-    COVERS_URL = "https://covers.openlibrary.org/b"
+    BASE_URL = os.getenv("OPENLIBRARY_BASE_URL", "https://openlibrary.org/")
+    COVERS_URL = os.getenv("OPENLIBRARY_COVERS_URL", "https://covers.openlibrary.org/b")
 
     
     def __init__(self):
-        self.session = requests.Session()
+        self.session = None
+        self.timeout = aiohttp.ClientTimeout(connect=5, total=10)
     
-    def make_request(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    async def _get_session(self):
+        """Получение или создание сессии aiohttp."""
+        if self.session is None or self.session.closed:
+            self.session = aiohttp.ClientSession(timeout=self.timeout)
+        return self.session
+    
+    async def make_request(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         """
         Выполнение HTTP-запроса к API Open Library.
         
@@ -32,18 +41,19 @@ class OpenLibraryApi(BookInfoProvider):
         :return: Результат запроса или None при ошибке
         """
         try:
+            session = await self._get_session()
             url = f"{self.BASE_URL}{endpoint}"
-            response = self.session.get(url, params=params)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as e:
+            async with session.get(url, params=params) as response:
+                response.raise_for_status()
+                return await response.json()
+        except aiohttp.ClientError as e:
             logger.error(f"Ошибка при запросе к API: {e}")
             return None
         except ValueError as e:
             logger.error(f"Ошибка при разборе JSON: {e}")
             return None
     
-    def search(self, query: str, **kwargs) -> Optional[Dict[str, Any]]:
+    async def search(self, query: str, **kwargs) -> Optional[Dict[str, Any]]:
         """
         Поиск данных в API Open Library.
         
@@ -53,7 +63,7 @@ class OpenLibraryApi(BookInfoProvider):
         """
         try:
             params = {"q": query, **kwargs}
-            result = self.make_request("/search.json", params)
+            result = await self.make_request("/search.json", params)
             
             if result and result.get("numFound", 0) > 0 and len(result.get("docs", [])) > 0:
                 return result["docs"][0]
@@ -62,7 +72,7 @@ class OpenLibraryApi(BookInfoProvider):
             logger.error(f"Ошибка при поиске: {e}")
             return None
     
-    def get_details(self, item_id: str) -> Optional[Dict[str, Any]]:
+    async def get_details(self, item_id: str) -> Optional[Dict[str, Any]]:
         """
         Получение детальной информации по идентификатору.
         
@@ -70,12 +80,12 @@ class OpenLibraryApi(BookInfoProvider):
         :return: Детальная информация или None при ошибке
         """
         try:
-            return self.make_request(f"{item_id}.json")
+            return await self.make_request(f"{item_id}.json")
         except Exception as e:
             logger.error(f"Ошибка при получении деталей: {e}")
             return None
     
-    def search_book(self, title: str) -> Optional[Dict[str, Any]]:
+    async def search_book(self, title: str) -> Optional[Dict[str, Any]]:
         """
         Поиск книги в Open Library по названию.
         
@@ -84,12 +94,13 @@ class OpenLibraryApi(BookInfoProvider):
         """
         try:
             query = f"title:{title}"
-            return self.search(query, limit=1)
+            return await self.search(query, limit=1)
         except Exception as e:
             logger.error(f"Ошибка при поиске книги: {e}")
             return None
-    
-    def get_book_details(self, key: str) -> Optional[Dict[str, Any]]:
+
+    @lru_cache(maxsize=128)
+    async def get_book_details(self, key: str) -> Optional[Dict[str, Any]]:
         """
         Получение детальной информации о книге по её ключу.
         
@@ -97,12 +108,12 @@ class OpenLibraryApi(BookInfoProvider):
         :return: Детальная информация о книге или None при ошибке
         """
         try:
-            return self.get_details(key)
+            return await self.get_details(key)
         except Exception as e:
             logger.error(f"Ошибка при получении деталей книги: {e}")
             return None
     
-    def get_book_rating(self, key: str) -> Optional[float]:
+    async def get_book_rating(self, key: str) -> Optional[float]:
         """
         Получение рейтинга книги.
         
@@ -113,7 +124,7 @@ class OpenLibraryApi(BookInfoProvider):
             # Удаляем префикс '/works/' из ключа, если он есть
             work_id = key.split('/')[-1] if '/' in key else key
             
-            result = self.make_request(f"/works/{work_id}/ratings.json")
+            result = await self.make_request(f"/works/{work_id}/ratings.json")
             if result and "summary" in result and "average" in result["summary"]:
                 return result["summary"]["average"]
             return None
@@ -121,7 +132,7 @@ class OpenLibraryApi(BookInfoProvider):
             logger.error(f"Ошибка при получении рейтинга книги: {e}")
             return None
     
-    def get_cover_url(self, book_id: str, size: str = "M") -> Optional[HttpUrl]:
+    async def get_cover_url(self, book_id: str, size: str = "M") -> Optional[HttpUrl]:
         """
         Получение URL обложки книги.
         
@@ -140,12 +151,17 @@ class OpenLibraryApi(BookInfoProvider):
             id_type = "OLID"
             cover_url = f"{self.COVERS_URL}/{id_type}/{olid}-{size}.jpg"
             
-            return cover_url
+            # Проверяем существование обложки
+            session = await self._get_session()
+            async with session.head(cover_url) as response:
+                if response.status == 200:
+                    return cover_url
+            return None
         except Exception as e:
             logger.error(f"Ошибка при получении URL обложки: {e}")
             return None
     
-    def get_book_description(self, book_data: Dict[str, Any]) -> Optional[str]:
+    async def get_book_description(self, book_data: Dict[str, Any]) -> Optional[str]:
         """
         Извлечение описания книги из данных Open Library.
         
@@ -154,7 +170,7 @@ class OpenLibraryApi(BookInfoProvider):
         """
         try:
             description = None
-            result = self.make_request(f"{book_data['key']}/editions.json")
+            result = await self.make_request(f"{book_data['key']}/editions.json")
             
             if result and "entries" in result:
                 for entry in result["entries"]:
@@ -167,18 +183,18 @@ class OpenLibraryApi(BookInfoProvider):
             logger.error(f"Ошибка при получении описания книги: {e}")
             return None
     
-    def enrich_book_data(self, title: str) -> EnrichBookData:
+    async def enrich_book_data(self, title: str) -> EnrichBookData:
         """
         Получение дополнительной информации о книге из Open Library.
         
         :param title: Название книги
-        :return: Кортеж (URL обложки, описание, рейтинг)
+        :return: EnrichBookData (URL обложки, описание, рейтинг)
         """
         try:
-            book_search_result = self.search_book(title)
+            book_search_result = await self.search_book(title)
             
             if not book_search_result:
-                return None, None, None
+                return EnrichBookData(cover_url=None, description=None, rating=None)
             
             cover_url = None
             description = None
@@ -187,10 +203,10 @@ class OpenLibraryApi(BookInfoProvider):
             # Получаем ключ книги (работы)
             work_key = book_search_result.get("key") or book_search_result.get("work_key")
             if work_key:
-                book_details = self.get_book_details(work_key)
+                book_details = await self.get_book_details(work_key)
                 if book_details:
-                    description = self.get_book_description(book_details)
-                    rating = self.get_book_rating(work_key)
+                    description = await self.get_book_description(book_details)
+                    rating = await self.get_book_rating(work_key)
             
             # Получаем ID книги для обложки
             cover_id = book_search_result.get("cover_i") or book_search_result.get("cover_id")
@@ -199,9 +215,14 @@ class OpenLibraryApi(BookInfoProvider):
             elif "edition_key" in book_search_result and book_search_result["edition_key"]:
                 # Используем ID первого издания, если доступно
                 edition_id = book_search_result["edition_key"][0]
-                cover_url = self.get_cover_url(edition_id)
+                cover_url = await self.get_cover_url(edition_id)
             
             return EnrichBookData(cover_url=cover_url, description=description, rating=rating)
         except Exception as e:
             logger.error(f"Ошибка при обогащении данных книги: {e}")
-            return None
+            return EnrichBookData(cover_url=None, description=None, rating=None)
+            
+    async def close(self):
+        """Закрытие сессии при завершении работы."""
+        if self.session and not self.session.closed:
+            await self.session.close()
